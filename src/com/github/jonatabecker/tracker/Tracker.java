@@ -1,13 +1,13 @@
 package com.github.jonatabecker.tracker;
 
-import com.github.jonatabecker.share.Job;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import com.github.jonatabecker.share.Fifo;
+import com.github.jonatabecker.share.Job;
+import java.util.Arrays;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  *
@@ -15,46 +15,64 @@ import java.util.List;
  */
 public class Tracker {
 
-    static List<Integer> jobs = Collections.synchronizedList(new ArrayList<Integer>());
-    static List<Integer> results = Collections.synchronizedList(new ArrayList<Integer>());
-    static int nJobs;
+    private final LinkedBlockingQueue<Job> jobs;
+    private final LinkedBlockingQueue<Object> results;
 
-    
-    private void createJobs(int nJobs) {
-        Tracker.nJobs = nJobs;
-        for (int i = 0; i < nJobs; i++) {
-            jobs.add(i + 1);
-        }
+    public Tracker() {
+        this.jobs = new LinkedBlockingQueue();
+        this.results = new LinkedBlockingQueue();
+    }
+
+    public Job getJog() throws InterruptedException {
+        return jobs.poll();
     }
     
-    public static void listResults(){
-        if(Tracker.nJobs != results.size()){
-            return;
-        }
-        for(Integer n:results){
-            System.out.println("Value: " + n);
+    public void addJob(Job job) {
+        jobs.add(job);
+    }
+
+    public void addResult(Object object) throws InterruptedException {
+        results.put(object);
+        if (object instanceof int[]) {
+            System.out.println("result: " + Arrays.toString((int[]) object));
+        } else {
+            System.out.println("result: " + object);
         }
     }
-    
-    private static void startRegistry(int port)
-            throws RemoteException {
+
+    public void startRegistry(int port) throws RemoteException {
         try {
-            Registry registry
-                    = LocateRegistry.getRegistry(port);
+            Registry registry = LocateRegistry.getRegistry(port);
             registry.list();
         } catch (RemoteException e) {
             LocateRegistry.createRegistry(port);
         }
     }
 
+    private static void addPrimeJobs(Tracker tracker, int n) {
+        for (int i = 1; i < n; i++) {
+            tracker.addJob(new PrimeJob(i));
+        }
+    }
+    
+    private static void addSortJobs(Tracker tracker, int n, int size) {
+        for (int i = 0; i < n; i++) {
+            int[] arr = new int[size];
+            for (int x = 0; x < size; x++) {
+                arr[x] = (int) (Math.random() * 10);
+            }
+            tracker.addJob(new SortJob(arr));
+        }
+    }
+    
     public static void main(String[] args) {
-        Tracker t = new Tracker();
-        String url;
-        t.createJobs(1000);
         try {
-            startRegistry(8877);
-            url = "rmi://localhost:" + 8877 + "/tracker";
-            Job job = new PrimeJob();
+            Tracker tracker = new Tracker();
+            tracker.startRegistry(8877);
+            addPrimeJobs(tracker, 10);
+            addSortJobs(tracker, 10, 10000);
+            String url = "rmi://localhost:" + 8877 + "/tracker";
+            Fifo job = new FifoJob(tracker);
             Naming.rebind(url, job);
         } catch (Exception e) {
             e.printStackTrace();

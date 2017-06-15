@@ -1,28 +1,41 @@
 package com.github.jonatabecker.tracker;
 
 import com.github.jonatabecker.share.Job;
-import java.rmi.RemoteException;
-import java.rmi.server.UnicastRemoteObject;
+import java.io.Serializable;
 
 /**
  *
  * @author JonataBecker
  */
-public class PrimeJob extends UnicastRemoteObject implements Job{
+public class PrimeJob implements Job<Integer>, Serializable {
 
-    public PrimeJob() throws RemoteException{
-        super();
-    }
-    
-    @Override
-    public Integer getJob() throws RemoteException {
-        return (Tracker.jobs.size() > 0)?Tracker.jobs.remove(0):null;
+    private final Integer number;
+
+    public PrimeJob(Integer number) {
+        this.number = number;
     }
 
-    @Override
-    public void sendJobResult(Integer result) throws RemoteException {
-        Tracker.results.add(result);
-        Tracker.listResults();
+    private boolean isPrime(int n) {
+        int v = n;
+        while (--v > 1) {
+            if (n % v == 0) {
+                return false;
+            }
+        }
+        return true;
     }
-    
+
+    @Override
+    public Integer exec() {
+        if (isPrime(number)) {
+            return number;
+        }
+        return 0;
+    }
+
+    @Override
+    public String toString() {
+        return "PrimeJob{" + "number=" + number + '}';
+    }
+
 }
